@@ -3,6 +3,7 @@ package libs.arusoft.com.aruservices;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,14 +28,16 @@ public class AruWebService {
     private Object dataTransferObject;
     private Class clazz;
     private Parser parser;
+    private Map<String, String> headers;
 
-    public AruWebService(String url, RequestMethodEnum requestMethod, Map<String, String> queryParameter, Object dataTransferObject, Class clazz, Parser parser) {
+    public AruWebService(String url, RequestMethodEnum requestMethod, Map<String, String> queryParameter, Object dataTransferObject, Class clazz, Parser parser, Map<String, String> headers) {
         this.url = url;
         this.requestMethod = requestMethod;
         this.queryParameter = queryParameter;
         this.dataTransferObject = dataTransferObject;
         this.clazz = clazz;
         this.parser = parser;
+        this.headers = headers;
     }
 
 
@@ -43,35 +46,41 @@ public class AruWebService {
         InputStream inputStream = null;
         BufferedReader reader = null;
         connection.connect();
-        inputStream = connection.getInputStream();
-        if (inputStream == null) {
-            // Nothing to do.
-            return null;
-        }
-        reader = new BufferedReader(new InputStreamReader(inputStream));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            // Since it's JSON, adding a newline isn't necessary (it won't affect parsing)
-            // But it does make debugging a *lot* easier if you print out the completed
-            // buffer for debugging.
-            buffer.append(line + "\n");
-        }
-        reader.close();
-        connection.disconnect();
-        if (buffer != null && buffer.length() > 0) {
-            return buffer.toString();
+        int status = connection.getResponseCode();
+        if (status == HttpURLConnection.HTTP_OK) {
+            inputStream = connection.getInputStream();
+            if (inputStream == null) {
+                // Nothing to do.
+                return null;
+            }
+            reader = new BufferedReader(new InputStreamReader(inputStream));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // Since it's JSON, adding a newline isn't necessary (it won't affect parsing)
+                // But it does make debugging a *lot* easier if you print out the completed
+                // buffer for debugging.
+                buffer.append(line + "\n");
+            }
+            reader.close();
+            connection.disconnect();
+            if (buffer != null && buffer.length() > 0) {
+                return buffer.toString();
+            } else {
+                // Stream was empty.  No point in parsing.
+                return null;
+            }
         } else {
-            // Stream was empty.  No point in parsing.
-            return null;
+            inputStream = connection.getErrorStream();
+            String errorMessage = inputStream.toString() + " Status Code:" + status;
+            throw new IOException(errorMessage);
         }
-
     }
 
     public enum RequestMethodEnum {
         POST, PUT, GET
     }
 
-    public <T> T execute() throws IllegalAccessException, InstantiationException, IOException {
+    public Object execute() throws IllegalAccessException, InstantiationException, IOException {
         String response;
 
         if (queryParameter != null) {
@@ -86,26 +95,30 @@ public class AruWebService {
         }
         HttpURLConnection urlConnection = (HttpURLConnection) new URL(url).openConnection();
         urlConnection.setRequestMethod(requestMethod.toString());
+        for ( Map.Entry<String, String> param : headers.entrySet()){
+            urlConnection.setRequestProperty(param.getKey(), param.getValue());
+        }
         //urlConnection.setInstanceFollowRedirects(false);
         if (dataTransferObject != null) {
             String request = parser.stringify(dataTransferObject);
             Log.i(TAG, "request::" + request);
-
-            urlConnection.setRequestProperty("Content-type", "application/json");
-            urlConnection.setRequestProperty("Content-Length", Integer.toString(request.getBytes().length));
+            //urlConnection.setRequestProperty("Content-type", "application/json");
+            //urlConnection.setRequestProperty("Content-Length", Integer.toString(request.getBytes().length));
             byte[] outputInBytes = request.getBytes("UTF-8");
             OutputStream os = urlConnection.getOutputStream();
             os.write(outputInBytes);
+            os.flush();
             os.close();
         }
 
         urlConnection.connect();
         response = fetchResponse(urlConnection);
         urlConnection.disconnect();
+        Log.d(TAG, "response::" + response);
         if (TextUtils.isEmpty(response)) {
             throw new IllegalAccessException("Object cannot be parsed.");
         }
-        return parser.converToFromString(response, clazz);
+        return parser.convertToFromString(response, clazz);
     }
 
     /***********************************************************************************************
@@ -118,13 +131,25 @@ public class AruWebService {
         private Class clazz;
         private Object dataTransferObject;
         private Parser parser;
+        private Map<String, String> headers;
 
         public Builder() {
             queryParameter = new HashMap<>();
+            headers = new HashMap<>();
         }
 
         public Builder queryParameter(String key, String value) {
             queryParameter.put(key, value);
+            return this;
+        }
+
+        public Builder headers(String key, String value) {
+            headers.put(key, value);
+            return this;
+        }
+
+        public Builder headers(Map header) {
+            this.headers = headers;
             return this;
         }
 
@@ -159,7 +184,7 @@ public class AruWebService {
         }
 
         public AruWebService build() {
-            AruWebService aruWebService = new AruWebService(url, requestMethod, queryParameter, dataTransferObject, clazz, parser);
+            AruWebService aruWebService = new AruWebService(url, requestMethod, queryParameter, dataTransferObject, clazz, parser, headers);
             return aruWebService;
         }
     }

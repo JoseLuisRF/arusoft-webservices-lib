@@ -5,5 +5,5 @@ package libs.arusoft.com.aruservices;
  */
 public interface Parser {
     String stringify(Object object);
-    <T>T converToFromString(String data, Class clazz);
+    Object convertToFromString(String data, Class clazz);
 }

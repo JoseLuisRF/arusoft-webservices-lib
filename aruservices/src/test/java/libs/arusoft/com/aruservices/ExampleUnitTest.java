@@ -39,13 +39,4 @@ public class ExampleUnitTest {
     }
 
 
-    @Test
-    public void consumeWebServicePost() throws Exception {
-        AruWebService.Builder builder = new AruWebService.Builder();
-        builder.url("http://www.omdbapi.com/");
-        builder.jsonParameter("");
-        builder.requestMethod(AruWebService.RequestMethodEnum.GET);
-        AruWebService aruWebService = builder.build();
-        aruWebService.execute();
-    }
 }

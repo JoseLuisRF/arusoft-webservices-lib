@@ -1,16 +1,24 @@
 package libs.arusoft.com.aruservices;
 
+import com.google.gson.Gson;
+
 /**
  * Created by jose.ramos on 01/03/2016.
  */
 public class GsonParser implements Parser {
-    @Override
-    public String stringify(Object object) {
-        return null;
+    private Gson gson;
+
+    public GsonParser(){
+        this.gson = new Gson();
     }
 
     @Override
-    public <T> T converToFromString(String data, Class clazz) {
-        return null;
+    public String stringify(Object object) {
+        return gson.toJson(object);
+    }
+
+    @Override
+    public Object convertToFromString(String data, Class clazz) {
+        return  gson.fromJson(data, clazz);
     }
 }
